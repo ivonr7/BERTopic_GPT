@@ -19,14 +19,11 @@ OUT_FILE=CATEGORY+f"_wQuestions{N_QUESTION}.jsonl"
 
 
 
-# #downlod sentence fragmenter
-# sp.require_gpu()
-# _=sp.load("en_core_web_md")
 
 pipe = sp.load("en_core_web_md")
-# #load Dataset
-# dataset_name="./ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json"
-# topics=load_initial_questions(dataset_name)
+
+
+#load dataset
 print(f"loading dataset {ds_name}.......")
 df = pd.read_json(str(ds_name),orient='records',lines=True, chunksize=1000)
 
@@ -34,7 +31,6 @@ df = pd.read_json(str(ds_name),orient='records',lines=True, chunksize=1000)
 
 
 #Category aggregator deque for fast insert speeds
-cat_agg=deque()
 grammar_cats=deque()
 
 
@@ -57,13 +53,13 @@ with open(OUT_PATH+OUT_FILE, mode="a") as f:
             for token in sent:
                 if token.pos_ == CATEGORY:
                     grammar_cats.append([token.lemma_,str(sent)])
-    # print(f"writing {CATEGORY} and prompts to {OUT_FILE}.......")
-    # f.write(
-    #     pd.DataFrame(
-    #         grammar_cats,
-    #         columns=["Type","Prompt"]
-    #     ).to_json(orient='records',lines=True)
-    # )
+    print(f"writing {CATEGORY} and prompts to {OUT_FILE}.......")
+    f.write(
+        pd.DataFrame(
+            grammar_cats,
+            columns=["Type","Prompt"]
+        ).to_json(orient='records',lines=True)
+    )
 
 
     
