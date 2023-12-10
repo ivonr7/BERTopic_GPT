@@ -7,6 +7,7 @@ from collections import Counter, deque
 
 import pandas as pd
 
+from pathlib import Path
 import os
 
 N_QUESTION = 3
@@ -35,7 +36,7 @@ grammar_cats=deque()
 
 
 #make output directory
-if not os.path.exists(OUT_PATH): os.mkdir(OUT_PATH)
+if not os.path.exists(OUT_PATH): Path(OUT_PATH).mkdir(parents=True,exist_ok=True)
 
 with open(OUT_PATH+OUT_FILE, mode="w") as f:
     print("file created")
