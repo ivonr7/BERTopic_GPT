@@ -7,7 +7,7 @@ from collections import deque
 import re
 from random import sample
 from multiprocessing import Queue, Pool, set_start_method
-from itertools import repeat
+
 
 
 #loads every questions and answer
@@ -97,6 +97,7 @@ def get_question(chat:str)->str:
 
 #return top x questions as a string
 def get_x_questions(convo:dict,x:int)->str:
+
     amt = min(x,len(convo.keys()))
     questions=""
     end = re.compile(r"<\|Human\|>:|<eo[ah]>")
@@ -171,10 +172,14 @@ def subsample_dataset(path:Path,fname:str,nrows:int,x:int=1):
 
 def random_subsample_dataset(path:Path,fname:str,nrand:int,chunksize:int=50,x:int=1):
     assert nrand < chunksize and "# Unique samples have to be less than chunk size"
+
     if os.path.exists(str(path)):
+        #for minimizing memory footprint returns iterator
         ds=pd.read_json(path,lines=True,orient='records', chunksize=chunksize)
-       
+        
+        #Given by File name to write
         file = f"{fname}_NQs_{x}.jsonl"
+        #choose nrand indicies that we will ignore out of chunksize
         rands = dict.fromkeys(sample(list(range(50)),nrand))
         sents=deque()
         index =0
@@ -183,6 +188,7 @@ def random_subsample_dataset(path:Path,fname:str,nrand:int,chunksize:int=50,x:in
                 if i in rands:
                     category = list(chunk['category'])[0]
                     if check_en(item["turn_1"]['Human']):
+                            #append category of question and the x (1,2,3 ... ) question
                             sents.append([category,get_x_question(item,x)])
         
         print("Writing obj.....")
@@ -195,6 +201,8 @@ def random_subsample_dataset(path:Path,fname:str,nrand:int,chunksize:int=50,x:in
                 ).to_json(orient='records', lines=True)
             )
         print(f"wrote to {file} in json records format of the first {x} questions")
+        return
+    print("path does not exist")
 
 def add_q(q,category:str,item,x:int):
     if check_en(item["turn_1"]['Human']):
@@ -278,10 +286,10 @@ def xlt_all(path:Path)-> None:
     return []
 
 if __name__ == "__main__":
-    set_start_method("spawn")
+
     # # print(xlt_questions("./ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json","xlt_questions"))
     for i in range(3):
-        random_subsample_dataset("../moss-003-sft-no-tools.jsonl",'rand_Moss3_XLT',nrand=25,x=i+1)
+        random_subsample_dataset("../moss-003-sft-no-tools/moss-003-sft-no-tools.jsonl",'rand_Moss3_XLT',nrand=25,x=i+1)
 
     # with Pool(os.cpu_count()) as p:
     #     p.starmap(xlt_MOSS3_x_question,[
