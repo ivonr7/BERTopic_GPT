@@ -1,8 +1,19 @@
 import torch
+import spacy
 
 if torch.cuda.is_available():
-    device=torch.device("cuda")
+    bt=torch.device("cuda")
 else:
-    device=torch.device("cpu")
+    bt=torch.device("cpu")
 
-print("Using ",device)
+sp=spacy.require_gpu()
+
+print("BERTopic Using ",bt)
+print("Spacy using","gpu" if sp else "cpu")
+
+
+
+
+# Return to University/College
+# Masters of Management/Marketing
+# Networking: attend career fairs,  connect with previous contacts for finding Director of Marketing/Management position

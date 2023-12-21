@@ -108,13 +108,9 @@ def get_x_questions(convo:dict,x:int)->str:
 
 
 def get_x_question(convo:dict,x:int)->str:
-    amt = min(x,len(convo.keys()))
-    questions=""
+    if x> len(convo.keys()): return None
     end = re.compile(r"<\|Human\|>:|<eo[ah]>")
-    for i in range(amt):
-        turn = f"turn_{i+1}"
-        questions = re.sub(end,'',convo[turn]['Human'])
-    return questions
+    return re.sub(end,'',convo[f'turn_{x}']['Human'])
     
 
 #tranfoms_moss Dataset to json records form that we care about
@@ -188,8 +184,10 @@ def random_subsample_dataset(path:Path,fname:str,nrand:int,chunksize:int=50,x:in
                 if i in rands:
                     category = list(chunk['category'])[0]
                     if check_en(item["turn_1"]['Human']):
-                            #append category of question and the x (1,2,3 ... ) question
-                            sents.append([category,get_x_question(item,x)])
+                            q=get_x_question(item,x)
+                            if q is not None:
+                                #append category of question and the x (1,2,3 ... ) question
+                                sents.append([category,q])
         
         print("Writing obj.....")
         with open(file,encoding='utf-8',mode='w') as f:
@@ -288,7 +286,7 @@ def xlt_all(path:Path)-> None:
 if __name__ == "__main__":
 
     # # print(xlt_questions("./ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json","xlt_questions"))
-    for i in range(3):
+    for i in range(10):
         random_subsample_dataset("../moss-003-sft-no-tools/moss-003-sft-no-tools.jsonl",'rand_Moss3_XLT',nrand=25,x=i+1)
 
     # with Pool(os.cpu_count()) as p:
