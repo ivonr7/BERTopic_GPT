@@ -6,14 +6,10 @@ from collections import Counter, deque
 import click
 
 import pandas as pd
-
+from collections import deque
 import os
-
-@click.command()
-@click.option('--question',default=1,help='Which question number to write')
-@click.option('--pos',default='VERB', help='Which spacy part of speech should we use') 
-@click.option('--filename',default='',help='Formatted file dataset to input')
-def get_POS(question,pos,filename):
+import itertools
+def get_Question(question,pos,filename):
 
     if filename == '':
         filename =  f'rand_Moss3_XLT_NQs_{question}.jsonl'
@@ -74,8 +70,180 @@ def get_POS(question,pos,filename):
 
     print(np.unique(grammars))
 
+
+
+
+def get_dataset(question,pos,filename,filtering=True):
+
+    if filename == '':
+        filename =  f'rand_Moss3_XLT_NQs_{question}.jsonl'
+    OUT_PATH= os.getcwd()+f'/out/{pos}/'
+    OUT_FILE=pos+f"_wQuestions{question}.jsonl"
+
+    pipe = sp.load("en_core_web_md")
+
+    #load dataset
+    print(f"loading dataset {filename}.......")
+    df = pd.read_json(filename,orient='records',lines=True)
+    #Category aggregator deque for fast insert speeds
+    grammar_cats=deque()
+
+
+    #make output directory
+    if not os.path.exists(OUT_PATH): os.mkdir(OUT_PATH)
+
+    with open(OUT_PATH+OUT_FILE, mode="w") as f:
+        print("file created")
+
+
+    print("creating dataset...")
+    with open(OUT_PATH+OUT_FILE, mode="a") as f:
+        
+
+        
+        sents = pipe.pipe(df['question_0'])
+        #make new dataframe
+        for i,sent in tqdm(enumerate(list(sents))):
+
+            for token in sent:
+                if token.pos_ == pos:
+                    row = list(df.iloc[i])
+                    grammar_cats.append([token.lemma_,*row[:]])
+        cols = df.columns
+        out = pd.DataFrame(
+            grammar_cats,
+            columns=["Verb",*cols]
+        )   
+        if filtering:
+            print("filtering dataset...")
+            #filtering
+            #filter lines by VERB
+            filter_df(out,'Verb',5)
+
+            #filter rest of columns by top 20
+            for col in out.columns[3:]:
+                print(f"filtering {col} ....")  
+                sents = pipe.pipe(out[col])
+                verbs = deque()
+                for sent in tqdm(list(sents)):
+                    for token in sent:
+                        if token.pos_ == pos:
+                            verbs.append(token.lemma_)
+                
+                filter_by_verbs_in_top_x(out,col,verbs,20)
+
+
+
+        print(f"writing {pos} and prompts to {OUT_FILE}.......")
+        
+        f.write(
+            out.to_json(orient='records',lines=True)
+        )
+
+
+        
+    
+
+
+#for shit
+
+def to_verbs(col:pd.Series,pipe,pos='VERB'):
+        return pipe.pipe(col)
+
+
+def set_verb(out_key:str,col,pipe,pos='VERB')->tuple:
+    sents = pipe.pipe(col)
+    lines=deque()    
+    for i,sent in tqdm(enumerate(list(sents))):
+  
+
+        for token in sent:
+            if token.pos_ == pos:
+                lines.append((i,token.lemma_))
+    #return as dict
+    return out_key,list(lines)
+
+def create_verbs(df:pd.DataFrame,pipe)->pd.DataFrame:
+    n_cols = dict()
+    for col in df.columns:
+            print(f"Running {col}")
+            if not col == 'category':
+                print("copying to gpu...")
+                if col == 'question_0':
+                    c = set_verb('category',df[col],pipe)
+                    n_cols[c[0]] = c[1]
+                    n_cols['question_0']=list(df['question_0']) 
+                    
+                else: 
+                    c = set_verb(col,df[col],pipe)
+                    n_cols[c[0]] = c[1]
+
+
+    lines = itertools.product(
+        n_cols # iterable unpacking
+    )
+    return pd.DataFrame(lines)
+def filter_by_verbs_in_top_x(df:pd.DataFrame,col_key:str,verbs:pd.Series,top_x:int):
+    df=df[df[col_key].isin(get_top_x(verbs,top_x))]   
+
+
+def filter_df(df:pd.DataFrame,col_key:str,top_x:int):
+    df=df[df[col_key].isin(get_top_x(df[col_key],top_x))]
+
+def get_top_x(col:pd.Series,x:int)->list:
+    return [obj[0] for obj in (Counter(list(col)).most_common(5))]
+
+def get_Convo_Trace(question,pos,filename):
+
+    if filename == '':
+        filename =  f'rand_Moss3_XLT_NQs_{question}.jsonl'
+    OUT_PATH= os.getcwd()+f'/out/{pos}/'
+    OUT_FILE=pos+f"_wTop5q_convos{question}.jsonl"
+
+    pipe = sp.load("en_core_web_md")
+
+    #load dataset
+    print(f"loading dataset {filename}.......")
+    df = pd.read_json(filename,orient='records',lines=True)
+    #Category aggregator deque for fast insert speeds
+    
+
+
+    #make output directory
+    if not os.path.exists(OUT_PATH): os.mkdir(OUT_PATH)
+
+    with open(OUT_PATH+OUT_FILE, mode="w") as f:
+        print("file created")
+    
+
+
+    with open(OUT_PATH+OUT_FILE, mode="a") as f:
+
+        transform_df=create_verbs(df,pipe)
+        print(transform_df.head)
+        for col in transform_df.columns:
+            if not col == 'question_0' : 
+                if col == 'question_1':filter_df(transform_df,col,5)
+                else: filter_df(transform_df,col,20)
+
+        f.write(
+            transform_df.to_json(orient='records',lines=True)
+        )
+        
+
+        
+            
+
+
+        
+
+
+        
+    
+
 if __name__ == '__main__':
-    get_POS()
+    
+    get_dataset(10,'VERB','rand_Moss3_XLT_NQs_10.jsonl')
     # N_QUESTION = 1
     # CATEGORY="VERB"
     # OUT_PATH= os.getcwd()+f'/out/{CATEGORY}/'
