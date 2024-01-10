@@ -8,7 +8,7 @@ import click
 import pandas as pd
 from collections import deque
 import os
-import itertools
+from itertools import product
 def get_Question(question,pos,filename):
 
     if filename == '':
@@ -70,7 +70,10 @@ def get_Question(question,pos,filename):
 
     print(np.unique(grammars))
 
+def get_max_of_list(l:list[list]):
+    return max([len(item) for item in l])
 
+#filters entire dataset into component verbs
 
 
 def get_dataset(question,pos,filename,filtering=True):
@@ -99,40 +102,72 @@ def get_dataset(question,pos,filename,filtering=True):
     print("creating dataset...")
     with open(OUT_PATH+OUT_FILE, mode="a") as f:
         
+        #create all sents
+        cols=[]
+        for i in range(question):
+            cols.append(pipe.pipe(df[f'question_{i}']))
 
+        verb_cols=[]
+        grammar_cats=[]
+        #get all verbs
+        for i,col in enumerate(cols):
+            print(f"Getting Verbs Col {i+1}")
+            for i,sent in tqdm(enumerate(list(col))):
+
+                for token in sent:
+                    if token.pos_ == pos:
+                        row = list(df.iloc[i])
+                        grammar_cats.append((i,token.lemma_)) #make list of tuples and convert to dataframe for indexing
+            verb_cols.append(pd.DataFrame(grammar_cats,columns=['index','verb'])) 
+            
+        del cols
+        del grammar_cats
         
-        sents = pipe.pipe(df['question_0'])
-        #make new dataframe
-        for i,sent in tqdm(enumerate(list(sents))):
+        #index each col dataframe with index to get 10 series
+        #series->list 
+        #cartesian product of all lists
+        #append all outpus of cartesian product
+        rows=[]
+        for i in tqdm(range(df.shape[0])): #iterate rows
+            axes=[]
+            for col in verb_cols:
+                
+                axes.append(list(col['verb'].where(col['index']==i).dropna())) 
+            m=get_max_of_list(axes)
 
-            for token in sent:
-                if token.pos_ == pos:
-                    row = list(df.iloc[i])
-                    grammar_cats.append([token.lemma_,*row[:]])
+            for i in range(len(axes)):
+                for j in range(m-len(axes[i])):
+                    axes[i].append(np.nan)
+            a=pd.DataFrame(
+                    axes
+                ).ffill(axis=1).T.copy()
+            rows.append(
+                a.to_dict(orient='records')
+            )
+
+        print(rows[0])
+
+            
+            
+            
+
+        print(rows[0])
+        exit(1)  
         cols = df.columns
         out = pd.DataFrame(
             grammar_cats,
-            columns=["Verb",*cols]
+            columns=[*cols,"Verb"]
         )   
-        if filtering:
-            print("filtering dataset...")
-            #filtering
-            #filter lines by VERB
-            filter_df(out,'Verb',5)
-
-            #filter rest of columns by top 20
-            for col in out.columns[3:]:
-                print(f"filtering {col} ....")  
-                sents = pipe.pipe(out[col])
-                verbs = deque()
-                for sent in tqdm(list(sents)):
-                    for token in sent:
-                        if token.pos_ == pos:
-                            verbs.append(token.lemma_)
-                
-                filter_by_verbs_in_top_x(out,col,verbs,20)
+        
 
 
+
+        print("Validating")
+        top_x = get_top_x(out['Verb'],5)
+        passed = True
+        for row in range(out.shape[0]):
+                if out.iloc[row]['Verb'] not in top_x: passed=False
+        print("passed" if passed else "failed")
 
         print(f"writing {pos} and prompts to {OUT_FILE}.......")
         
