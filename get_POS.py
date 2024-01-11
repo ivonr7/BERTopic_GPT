@@ -127,6 +127,7 @@ def get_dataset(question,pos,filename,filtering=True):
         #series->list 
         #cartesian product of all lists
         #append all outpus of cartesian product
+        q1 = df['question_1']
         rows=[]
         for i in tqdm(range(df.shape[0])): #iterate rows
             axes=[]
@@ -139,28 +140,28 @@ def get_dataset(question,pos,filename,filtering=True):
                 for j in range(m-len(axes[i])):
                     axes[i].append(np.nan)
             a=pd.DataFrame(
-                    axes
-                ).ffill(axis=1).T.copy()
+                    q1[i]+axes
+                    columns= ['question_1']+[f'verb_{i}' for i in range(len(axes))]
+                ).T.ffill().copy()
             rows.append(
                 a.to_dict(orient='records')
             )
 
-        print(rows[0])
-
-            
-            
-            
-
-        print(rows[0])
-        exit(1)  
-        cols = df.columns
-        out = pd.DataFrame(
-            grammar_cats,
-            columns=[*cols,"Verb"]
-        )   
         
 
+            
+            
+            
 
+        
+        
+        out = pd.DataFrame.from_records(a)   
+        
+
+        print("filtering.....")
+        filter_df(out,col,5)
+        for col in tqdm(range(out.columns[2:])):
+            filter_df(out,col,20)
 
         print("Validating")
         top_x = get_top_x(out['Verb'],5)
