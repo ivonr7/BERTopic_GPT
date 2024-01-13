@@ -9,20 +9,40 @@ import pandas as pd
 from collections import deque
 import os
 from itertools import product
-def get_Question(question,pos,filename):
+def get_verbs(col,pos='VERB'):
+    #Category aggregator deque for fast insert speeds
+    grammar_cats=deque()
+    pipe = sp.load("en_core_web_md")
+    #preccess all questions
+    sents = pipe.pipe(col)
+    
+    #get index, verb , sentence for filtering later
+    for i,sent in tqdm(enumerate(list(sents))):
+
+        for token in sent:
+            if token.pos_ == pos:
+                grammar_cats.append([i,token.lemma_,str(sent)])
+                
+    
+    return pd.DataFrame(
+        grammar_cats,
+        columns=["index","verb","sent"]
+    )
+
+
+def get_Question(question,pos,filename,filter_num=5):
 
     if filename == '':
         filename =  f'rand_Moss3_XLT_NQs_{question}.jsonl'
     OUT_PATH= os.getcwd()+f'/out/{pos}/'
     OUT_FILE=pos+f"_wQuestions{question}.jsonl"
 
-    pipe = sp.load("en_core_web_md")
+    
 
     #load dataset
     print(f"loading dataset {filename}.......")
-    df = pd.read_json(filename,orient='records',lines=True, chunksize=10000)
-    #Category aggregator deque for fast insert speeds
-    grammar_cats=deque()
+    df = pd.read_json(filename,orient='records',lines=True)
+    
 
 
     #make output directory
@@ -30,45 +50,50 @@ def get_Question(question,pos,filename):
 
     with open(OUT_PATH+OUT_FILE, mode="w") as f:
         print("file created")
-    total_q=0
 
 
+    print("Extracting Verbs:---------------------------------------------------")
     with open(OUT_PATH+OUT_FILE, mode="a") as f:
-        for chunk in tqdm(df):
 
-            doc = list(chunk['questions'])
-            sents = pipe.pipe(doc)
-            
-            for sent in tqdm(list(sents)):
-                total_q+=1
-                for token in sent:
-                    if token.pos_ == pos:
-                        grammar_cats.append([token.lemma_,str(sent)])
-                        
-        print(f"writing {pos} and prompts to {OUT_FILE}.......")
+
+        verb_map = get_verbs(df['question_0'])
+        print("Filtering---------------------------------------------------")
+        #filter fisrt top x
+        verb_map = filter_df(verb_map,'verb',filter_num)
+
         f.write(
-            pd.DataFrame(
-                grammar_cats,
-                columns=["Type","Prompt"]
-            ).to_json(orient='records',lines=True)
-        )
+            verb_map.to_json(orient='records',lines=True)
+        )   
+    #filter whole dataset on top_x verbs
+    out = df.iloc[np.unique(verb_map['index'])].copy()
+
+    #add back all verbs using their row index
+    #multiples is handle by using a list
+    verbs = deque()
+    for i in tqdm(range(df.shape[0])):
+        v=verb_map['verb'].where(i == verb_map['index']).dropna()
+        if v.shape[0] != 0: verbs.append(list(v))
+    
+    out.insert(1,'Verb',list(verbs))
+    out.to_json("out/VERB/filterdataset.jsonl", orient='records',lines=True)
+
+    print("Statistics---------------------------------------------------")
+    agg_verbs = np.array(verb_map['verb']).flatten()
+    # #print common verbs
 
 
-        
-    grammars=[item[0] for item in grammar_cats]
 
-    #print common verbs
-    commons=Counter(grammars)
+    commons=Counter(agg_verbs)
     total_v = sum([commons[key] for key in commons.keys()])
     print(total_v)
     print([(common[0],  
             f"Percentage in respect to all verbs: {common[1]/total_v:.3f}",
-            f"Pecentage in respect to all questions:{common[1]/total_q:.3f} "
-            ) 
-        for common in commons.most_common(20)])
+            f"{common[1]} occurences") 
+        for common in commons.most_common(filter_num)])
+    print(f"{total_v} total verbs {out.shape[0]} conversations")
 
 
-    print(np.unique(grammars))
+    # print(np.unique(grammars))
 
 def get_max_of_list(l:list[list]):
     return max([len(item) for item in l])
@@ -223,10 +248,10 @@ def filter_by_verbs_in_top_x(df:pd.DataFrame,col_key:str,verbs:pd.Series,top_x:i
 
 
 def filter_df(df:pd.DataFrame,col_key:str,top_x:int):
-    df=df[df[col_key].isin(get_top_x(df[col_key],top_x))]
+    return df[df[col_key].isin(get_top_x(df[col_key],top_x))].copy()
 
 def get_top_x(col:pd.Series,x:int)->list:
-    return [obj[0] for obj in (Counter(list(col)).most_common(5))]
+    return [obj[0] for obj in (Counter(list(col)).most_common(x))]
 
 def get_Convo_Trace(question,pos,filename):
 
@@ -278,7 +303,7 @@ def get_Convo_Trace(question,pos,filename):
 
 if __name__ == '__main__':
     
-    get_dataset(10,'VERB','rand_Moss3_XLT_NQs_10.jsonl')
+    get_Question(10,'VERB','rand_Moss3_XLT_NQs_10.jsonl',filter_num=5)
     # N_QUESTION = 1
     # CATEGORY="VERB"
     # OUT_PATH= os.getcwd()+f'/out/{CATEGORY}/'
