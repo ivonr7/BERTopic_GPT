@@ -80,6 +80,9 @@ def xlt_questions(path:Path,fname:str)-> None:
                         f.write(pd.DataFrame([sent['value']], columns=['questions']).to_json(orient='records',lines=True))
         print("Wrote data to "+fname+'.jsonl')
 
+#MOSS3 
+
+
 #only english or chinese
 def check_en(q:str)->False:
     try:
@@ -96,14 +99,14 @@ def get_question(chat:str)->str:
     return re.split(end,chat)[0]
 
 #return top x questions as a string
-def get_x_questions(convo:dict,x:int)->str:
+def get_x_questions(convo:dict,x:int)->deque:
 
-    amt = min(x,len(convo.keys()))
-    questions=""
+    if x>len(convo.keys()): return None
+    questions=deque()
     end = re.compile(r"<\|Human\|>:|<eo[ah]>")
-    for i in range(amt):
+    for i in range(x):
         turn = f"turn_{i+1}"
-        questions += re.sub(end,'',convo[turn]['Human'])
+        questions.append(re.sub(end,'',convo[turn]['Human']))
     return questions
 
 
@@ -229,7 +232,14 @@ def xlt_MOSS3_x_questions(path:Path,fname:str,x:int)->None:
             for item in chunk['chat']:
                 
                 if check_en(item["turn_1"]['Human']):
-                        sents.append([category,get_x_questions(item,x)])
+                        q=get_x_questions(item,x)
+                        
+                        if  q!=None: 
+                            
+                            q.appendleft(category)
+  
+                            sents.append(list(q))
+                       
             
                 
         print("Writing obj.....")
@@ -237,8 +247,8 @@ def xlt_MOSS3_x_questions(path:Path,fname:str,x:int)->None:
 
             f.write(
                 pd.DataFrame(
-                    sents,
-                    columns=['category','questions']
+                    list(sents),
+                    columns=['category']+[f'question_{i}' for i in range(x)]
                 ).to_json(orient='records', lines=True)
             )
         print(f"wrote to {file} in json records format of the first {x} questions")
@@ -287,16 +297,8 @@ if __name__ == "__main__":
 
     # # print(xlt_questions("./ShareGPT_V3_unfiltered_cleaned_split_no_imsorry.json","xlt_questions"))
     for i in range(10):
-        random_subsample_dataset("../moss-003-sft-no-tools/moss-003-sft-no-tools.jsonl",'rand_Moss3_XLT',nrand=25,x=i+1)
+        xlt_MOSS3_x_questions("../moss-003-sft-no-tools/moss-003-sft-no-tools.jsonl",'rand_Moss3_XLT',x=i+1)
 
-    # with Pool(os.cpu_count()) as p:
-    #     p.starmap(xlt_MOSS3_x_question,[
-    #         ("../moss-003-sft-no-tools.jsonl",'Moss3_XLT',1),
-    #         ("../moss-003-sft-no-tools.jsonl",'Moss3_XLT',2),
-    #         ("../moss-003-sft-no-tools.jsonl",'Moss3_XLT',3)
-    #         ]
-    #     )
-    #     # xlt_MOSS3_x_questions("../moss-003-sft-no-tools.jsonl",'Moss3_XLT',i+1)
 
    
 
