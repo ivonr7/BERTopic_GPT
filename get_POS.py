@@ -9,9 +9,14 @@ import pandas as pd
 from collections import deque
 import os
 from itertools import product
-def get_verbs(col,pos='VERB'):
+
+#splits sentences into verbs Words well on large data will be slow on small data
+def get_verbs(col:pd.Series=None,pos:str='VERB') -> pd.DataFrame:
+    if col is None: return None
     #Category aggregator deque for fast insert speeds
     grammar_cats=deque()
+
+    #Copy all questions to gpu and tag verbs
     pipe = sp.load("en_core_web_md")
     #preccess all questions
     sents = pipe.pipe(col)
@@ -20,6 +25,8 @@ def get_verbs(col,pos='VERB'):
     for i,sent in tqdm(enumerate(list(sents))):
 
         for token in sent:
+            #Token is essentially a word-> 
+            #if words part of speech (.pos_) is VERB than save it else discard
             if token.pos_ == pos:
                 grammar_cats.append([i,token.lemma_,str(sent)])
                 
@@ -43,7 +50,7 @@ def get_Question(question,pos,filename,filter_num=5):
     print(f"loading dataset {filename}.......")
     df = pd.read_json(filename,orient='records',lines=True)
     
-
+    n_convos  = df.shape[0]
 
     #make output directory
     if not os.path.exists(OUT_PATH): os.mkdir(OUT_PATH)
@@ -56,7 +63,7 @@ def get_Question(question,pos,filename,filter_num=5):
     with open(OUT_PATH+OUT_FILE, mode="a") as f:
 
 
-        verb_map = get_verbs(df['question_0'])
+        verb_map = get_verbs(df[f'question_{question-1}'])
         print("Filtering---------------------------------------------------")
         #filter fisrt top x
         verb_map = filter_df(verb_map,'verb',filter_num)
@@ -74,8 +81,8 @@ def get_Question(question,pos,filename,filter_num=5):
         v=verb_map['verb'].where(i == verb_map['index']).dropna()
         if v.shape[0] != 0: verbs.append(list(v))
     
-    out.insert(1,'Verb',list(verbs))
-    out.to_json("out/VERB/filterdataset.jsonl", orient='records',lines=True)
+    out.insert(1,f'Verb_{question}',list(verbs))
+    out.to_json(f"out/VERB/filterdataset_{question}.jsonl", orient='records',lines=True)
 
     print("Statistics---------------------------------------------------")
     agg_verbs = np.array(verb_map['verb']).flatten()
@@ -87,10 +94,10 @@ def get_Question(question,pos,filename,filter_num=5):
     total_v = sum([commons[key] for key in commons.keys()])
     print(total_v)
     print([(common[0],  
-            f"Percentage in respect to all verbs: {common[1]/total_v:.3f}",
+            f"Percentage in respect to all verbs: {common[1]/n_convos:.3f}",
             f"{common[1]} occurences") 
         for common in commons.most_common(filter_num)])
-    print(f"{total_v} total verbs {out.shape[0]} conversations")
+    print(f"{total_v} total verbs {out.shape[0]} filtered conversations {n_convos} total conversations")
 
 
     # print(np.unique(grammars))
@@ -303,7 +310,8 @@ def get_Convo_Trace(question,pos,filename):
 
 if __name__ == '__main__':
     
-    get_Question(10,'VERB','rand_Moss3_XLT_NQs_10.jsonl',filter_num=5)
+    for i in range(10):
+        get_Question(i+1,'VERB',f'rand_Moss3_XLT_NQs_{i+1}.jsonl',filter_num=20)
     # N_QUESTION = 1
     # CATEGORY="VERB"
     # OUT_PATH= os.getcwd()+f'/out/{CATEGORY}/'
