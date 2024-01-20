@@ -40,7 +40,7 @@ def top20_from_top5(question:int,pos:str,filename:str,filter_num:tuple[int]=(5,2
     if filename == '':
         filename =  f'rand_Moss3_XLT_NQs_{question}.jsonl'
     OUT_PATH= os.getcwd()+f'/out/{pos}/'
-    OUT_FILE=pos+f"_wQuestions{question}.jsonl"
+    OUT_FILE=pos+f"_Top4_top20_wQuestions{question}.jsonl"
 
     
 
@@ -67,24 +67,34 @@ def top20_from_top5(question:int,pos:str,filename:str,filter_num:tuple[int]=(5,2
             all_verbs = get_verbs(df[q])
 
             #filter verbs
-            filtered_verbs = all_verbs[all_verbs['verb'].isin(get_top_x(all_verbs['verb'],filter_num[i]))].copy()
+            filtered_verbs  = filter_df(all_verbs,'verb',filter_num[i])
+            print(all_verbs.shape,filtered_verbs.shape)
+            
             if i == 0:i=1
             n_verb_map.append(filtered_verbs)
-            # to_keep.append(list(n_verb_map[-1]['index']))
+            # n_verb_map.append(all_verbs)
         print("Filtering:---------------------------------------------------")
-        # to_keep = np.unique(np.array(to_keep).flatten())
-        n_verb_map = pd.concat(n_verb_map)
-        to_keep = np.unique(n_verb_map['index'])
 
+        # for i,d in tqdm(enumerate(n_verb_map)):
 
+        all_verbs = pd.concat(n_verb_map,axis=0)
+        to_keep = np.unique(all_verbs['index'])
+
+        print(len(to_keep))
         out = df.iloc[to_keep].copy()
-        verbs = []
-        for i in tqdm(range(out.shape[0])):
-            l_verbs =n_verb_map['verb'].where(i == n_verb_map['index']).dropna()
-            if l_verbs.shape[0] != 0: verbs.append(list(l_verbs))
+        out.to_json('out.json',orient='records',lines=True)
+        exit(1)
+        # print(out.shape,df.shape)
+        # exit(1)
+        print("Adding Verbs to Output---------------------------------------------------")
+        for i, _ in enumerate(df.columns[1:]):
+            verbs = []
+            for j in tqdm(range(df.shape[0])):
+                l_verbs =n_verb_map[i]['verb'].where(j == n_verb_map[i]['index']).dropna()
+                if l_verbs.shape[0] != 0: verbs.append(list(l_verbs))
         
-
-        out.insert(1,f'Verb_{question}',list(verbs))
+            print(out.shape,df.shape,len(verbs))
+            # out.insert(1,f'Verb_{i}' ,list(verbs))
 
         out.to_json(f"out/VERB/filterdataset_top5_top20_{question}.jsonl", orient='records',lines=True)
 
@@ -103,12 +113,12 @@ def top20_from_top5(question:int,pos:str,filename:str,filter_num:tuple[int]=(5,2
         
 
 
-def get_Question(question:int,pos:str,filename:str,filter_num:int=5) -> None:
+def get_Question(question:int,pos:str,filename:str,filter_num:int=5,out_file:str="",out_path:str='') -> None:
 
     if filename == '':
         filename =  f'rand_Moss3_XLT_NQs_{question}.jsonl'
     OUT_PATH= os.getcwd()+f'/out/{pos}/'
-    OUT_FILE=pos+f"_wQuestions{question}.jsonl"
+    out_file=pos+f"_wQuestions{question}.jsonl"
 
     
 
@@ -121,12 +131,12 @@ def get_Question(question:int,pos:str,filename:str,filter_num:int=5) -> None:
     #make output directory
     if not os.path.exists(OUT_PATH): os.mkdir(OUT_PATH)
 
-    with open(OUT_PATH+OUT_FILE, mode="w") as f:
+    with open(OUT_PATH+out_file, mode="w") as f:
         print("file created")
 
 
     print("Extracting Verbs:---------------------------------------------------")
-    with open(OUT_PATH+OUT_FILE, mode="a") as f:
+    with open(OUT_PATH+out_file, mode="a") as f:
 
 
         verb_map = get_verbs(df[f'question_{question-1}'])
@@ -145,7 +155,7 @@ def get_Question(question:int,pos:str,filename:str,filter_num:int=5) -> None:
     verbs = deque()
     for i in tqdm(range(df.shape[0])):
         v=verb_map['verb'].where(i == verb_map['index']).dropna()
-        if v.shape[0] != 0: verbs.append(list(v))
+        if v.shape[0] != 0: verbs.append(" ".join(v))
     
     out.insert(1,f'Verb_{question}',list(verbs))
     out.to_json(f"out/VERB/filterdataset_{question}.jsonl", orient='records',lines=True)
@@ -373,9 +383,12 @@ def get_Convo_Trace(question,pos,filename):
 
 if __name__ == '__main__':
 
-    # for i in range(10):
-    #     top20_from_top5(i+1,'VERB',f'rand_Moss3_XLT_NQs_{i+1}.jsonl')
+        # top20_from_top5(10,'VERB',f'rand_Moss3_XLT_NQs_{10}.jsonl')
+    get_Question(1,'VERB',f'rand_Moss3_XLT_NQs_{10}.jsonl',filter_num=20)
 
-    top20_from_top5(10,'VERB',f'rand_Moss3_XLT_NQs_{10}.jsonl')
+    for i in range(9):
+        q = i+2
+        
+        get_Question(q,'VERB',f'./out/VERB/filterdataset_{q-1}.jsonl',filter_num=20)
 
 
